@@ -78,29 +78,52 @@ def normalize_text(text: str) -> str:
     
     return text.strip()
 
-def calculate_relevance_score(query_words: List[str], description: str) -> float:
-    """Calculate relevance score based on keyword matches"""
+def calculate_relevance_score(query_words: List[str], description: str, brand: str, code: str) -> float:
+    """Calculate relevance score based on keyword matches in description, brand, and code"""
+    # Normalize all text fields
     normalized_desc = normalize_text(description)
-    desc_words = normalized_desc.split()
+    normalized_brand = normalize_text(brand) 
+    normalized_code = normalize_text(code)
     
-    matches = 0
-    total_words = len(query_words)
+    # Split into words
+    desc_words = normalized_desc.split()
+    brand_words = normalized_brand.split()
+    code_words = normalized_code.split()
+    all_words = desc_words + brand_words + code_words
+    
+    matches = 0.0
+    total_query_words = len([w for w in query_words if len(w) > 1])  # Only count meaningful words
+    
+    if total_query_words == 0:
+        return 0.0
     
     for query_word in query_words:
-        if len(query_word) <= 2:  # Skip very short words
+        if len(query_word) <= 1:  # Skip very short words
             continue
             
-        # Exact match
-        if query_word in desc_words:
-            matches += 1
-        else:
-            # Partial match
-            for desc_word in desc_words:
-                if query_word in desc_word or desc_word in query_word:
-                    matches += 0.5
-                    break
+        # Check for exact matches (highest score)
+        if query_word in all_words:
+            matches += 1.0
+            continue
+            
+        # Check for partial matches in description (medium score)
+        found_partial = False
+        for desc_word in desc_words:
+            if len(desc_word) > 2 and (query_word in desc_word or desc_word in query_word):
+                matches += 0.7
+                found_partial = True
+                break
+        
+        if found_partial:
+            continue
+            
+        # Check for partial matches in brand/code (lower score)  
+        for word in brand_words + code_words:
+            if len(word) > 2 and (query_word in word or word in query_word):
+                matches += 0.5
+                break
     
-    return matches / total_words if total_words > 0 else 0.0
+    return min(matches / total_query_words, 1.0)  # Cap at 1.0
 
 @app.get("/")
 async def root():
