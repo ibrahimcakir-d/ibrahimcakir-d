@@ -209,6 +209,9 @@ function App() {
                     <div className="brand">
                       <strong>🏷️ Marka:</strong> {result.product.marka}
                     </div>
+                    <div className="code">
+                      <strong>🔢 Kod:</strong> {result.product.kod}
+                    </div>
                     <div className="description">
                       <strong>📝 Açıklama:</strong> {result.product.aciklama}
                     </div>
