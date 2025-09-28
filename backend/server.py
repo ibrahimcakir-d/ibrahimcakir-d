@@ -205,7 +205,7 @@ async def search_products(q: str = Query(..., min_length=1)):
     try:
         # Normalize and tokenize query
         normalized_query = normalize_text(q)
-        query_words = [word for word in normalized_query.split() if len(word) > 2]
+        query_words = [word for word in normalized_query.split() if len(word) > 1]  # Changed from > 2 to > 1
         
         if not query_words:
             return SearchResponse(
@@ -221,7 +221,12 @@ async def search_products(q: str = Query(..., min_length=1)):
         # Calculate relevance scores
         scored_results = []
         for product_data in products:
-            score = calculate_relevance_score(query_words, product_data['aciklama'])
+            score = calculate_relevance_score(
+                query_words, 
+                product_data['aciklama'],
+                product_data['marka'],
+                product_data['kod']
+            )
             if score > 0:  # Only include products with some relevance
                 product = Product(**product_data)
                 scored_results.append(SearchResult(
