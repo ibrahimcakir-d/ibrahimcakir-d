@@ -236,7 +236,7 @@ async def search_products(q: str = Query(..., min_length=1)):
         cursor = db.products.find({})
         products = await cursor.to_list(length=None)
         
-        # Calculate relevance scores
+        # Calculate relevance scores with minimum threshold
         scored_results = []
         for product_data in products:
             score = calculate_relevance_score(
@@ -245,7 +245,8 @@ async def search_products(q: str = Query(..., min_length=1)):
                 product_data['marka'],
                 product_data['kod']
             )
-            if score > 0:  # Only include products with some relevance
+            # Only include products with meaningful relevance (increased threshold)
+            if score > 0.25:  # Increased from 0 to 0.25 for better precision
                 product = Product(**product_data)
                 scored_results.append(SearchResult(
                     product=product,
