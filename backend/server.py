@@ -145,22 +145,23 @@ async def upload_excel(file: UploadFile = File(...)):
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Error reading Excel file: {str(e)}")
         
-        # Validate columns
-        required_columns = ['marka', 'aciklama', 'fiyat']
-        df.columns = df.columns.str.lower()
-        
-        missing_columns = []
-        for col in required_columns:
-            if col not in df.columns:
-                # Try to find similar column names
-                if len(df.columns) >= 3:
-                    df.columns = ['marka', 'aciklama', 'fiyat']
-                    break
-                else:
+        # Validate columns - expect 4 columns: Marka, Kod, Açıklama, Fiyat
+        if len(df.columns) >= 4:
+            df.columns = ['marka', 'kod', 'aciklama', 'fiyat']
+        else:
+            # Try to find columns by name
+            df.columns = df.columns.str.lower()
+            required_columns = ['marka', 'kod', 'aciklama', 'fiyat']
+            missing_columns = []
+            for col in required_columns:
+                if col not in df.columns:
                     missing_columns.append(col)
-        
-        if missing_columns:
-            raise HTTPException(status_code=400, detail=f"Missing columns: {missing_columns}")
+            
+            if missing_columns:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Excel dosyası 4 sütun içermelidir: Marka, Kod, Açıklama, Fiyat. Eksik sütunlar: {missing_columns}"
+                )
         
         # Clear existing products
         await db.products.delete_many({})
