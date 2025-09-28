@@ -1,75 +1,238 @@
-from fastapi import FastAPI, APIRouter
-from dotenv import load_dotenv
-from starlette.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, HTTPException, UploadFile, File, Query
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from motor.motor_asyncio import AsyncIOMotorClient
-import os
-import logging
-from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Optional, Any, Dict
+import os
+import pandas as pd
 import uuid
+import re
+import unicodedata
 from datetime import datetime
 
+# Database configuration
+MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+DATABASE_NAME = "search_engine_db"
 
-ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+# FastAPI app
+app = FastAPI(title="Excel Search Engine API")
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
-
-# Create the main app without a prefix
-app = FastAPI()
-
-# Create a router with the /api prefix
-api_router = APIRouter(prefix="/api")
-
-
-# Define Models
-class StatusCheck(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
-
-class StatusCheckCreate(BaseModel):
-    client_name: str
-
-# Add your routes to the router instead of directly to app
-@api_router.get("/")
-async def root():
-    return {"message": "Hello World"}
-
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.dict()
-    status_obj = StatusCheck(**status_dict)
-    _ = await db.status_checks.insert_one(status_obj.dict())
-    return status_obj
-
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    status_checks = await db.status_checks.find().to_list(1000)
-    return [StatusCheck(**status_check) for status_check in status_checks]
-
-# Include the router in the main app
-app.include_router(api_router)
-
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# MongoDB client
+client = AsyncIOMotorClient(MONGO_URL)
+db = client[DATABASE_NAME]
 
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    client.close()
+# Pydantic models
+class Product(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    marka: str
+    aciklama: str
+    fiyat: str
+    normalized_aciklama: str
+    upload_date: str
+
+class SearchResult(BaseModel):
+    product: Product
+    relevance_score: float
+
+class SearchResponse(BaseModel):
+    results: List[SearchResult]
+    total_count: int
+    query: str
+
+class UploadResponse(BaseModel):
+    message: str
+    products_count: int
+    upload_date: str
+
+def normalize_text(text: str) -> str:
+    """Normalize text for better search matching"""
+    if not text:
+        return ""
+    
+    # Convert to lowercase
+    text = text.lower()
+    
+    # Remove Turkish accents and special characters
+    replacements = {
+        'ç': 'c', 'ğ': 'g', 'ı': 'i', 'ö': 'o', 'ş': 's', 'ü': 'u',
+        'â': 'a', 'î': 'i', 'û': 'u', 'é': 'e'
+    }
+    
+    for old, new in replacements.items():
+        text = text.replace(old, new)
+    
+    # Remove punctuation and extra spaces
+    text = re.sub(r'[^\w\s]', ' ', text)
+    text = re.sub(r'\s+', ' ', text)
+    
+    return text.strip()
+
+def calculate_relevance_score(query_words: List[str], description: str) -> float:
+    """Calculate relevance score based on keyword matches"""
+    normalized_desc = normalize_text(description)
+    desc_words = normalized_desc.split()
+    
+    matches = 0
+    total_words = len(query_words)
+    
+    for query_word in query_words:
+        if len(query_word) <= 2:  # Skip very short words
+            continue
+            
+        # Exact match
+        if query_word in desc_words:
+            matches += 1
+        else:
+            # Partial match
+            for desc_word in desc_words:
+                if query_word in desc_word or desc_word in query_word:
+                    matches += 0.5
+                    break
+    
+    return matches / total_words if total_words > 0 else 0.0
+
+@app.get("/")
+async def root():
+    return {"message": "Excel Search Engine API"}
+
+@app.post("/api/upload", response_model=UploadResponse)
+async def upload_excel(file: UploadFile = File(...)):
+    """Upload and process Excel file"""
+    try:
+        if not file.filename.endswith(('.xlsx', '.xls')):
+            raise HTTPException(status_code=400, detail="Only Excel files are allowed")
+        
+        # Read Excel file
+        contents = await file.read()
+        
+        # Use pandas to read Excel
+        try:
+            df = pd.read_excel(contents)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Error reading Excel file: {str(e)}")
+        
+        # Validate columns
+        required_columns = ['marka', 'aciklama', 'fiyat']
+        df.columns = df.columns.str.lower()
+        
+        missing_columns = []
+        for col in required_columns:
+            if col not in df.columns:
+                # Try to find similar column names
+                if len(df.columns) >= 3:
+                    df.columns = ['marka', 'aciklama', 'fiyat']
+                    break
+                else:
+                    missing_columns.append(col)
+        
+        if missing_columns:
+            raise HTTPException(status_code=400, detail=f"Missing columns: {missing_columns}")
+        
+        # Clear existing products
+        await db.products.delete_many({})
+        
+        # Process and insert products
+        products = []
+        upload_date = datetime.now().isoformat()
+        
+        for index, row in df.iterrows():
+            if pd.isna(row['marka']) or pd.isna(row['aciklama']) or pd.isna(row['fiyat']):
+                continue
+                
+            product = {
+                "id": str(uuid.uuid4()),
+                "marka": str(row['marka']).strip(),
+                "aciklama": str(row['aciklama']).strip(),
+                "fiyat": str(row['fiyat']).strip(),
+                "normalized_aciklama": normalize_text(str(row['aciklama'])),
+                "upload_date": upload_date
+            }
+            products.append(product)
+        
+        if products:
+            await db.products.insert_many(products)
+        
+        return UploadResponse(
+            message=f"Successfully uploaded {len(products)} products",
+            products_count=len(products),
+            upload_date=upload_date
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@app.get("/api/search", response_model=SearchResponse)
+async def search_products(q: str = Query(..., min_length=1)):
+    """Search products by query"""
+    try:
+        # Normalize and tokenize query
+        normalized_query = normalize_text(q)
+        query_words = [word for word in normalized_query.split() if len(word) > 2]
+        
+        if not query_words:
+            return SearchResponse(
+                results=[],
+                total_count=0,
+                query=q
+            )
+        
+        # Get all products
+        cursor = db.products.find({})
+        products = await cursor.to_list(length=None)
+        
+        # Calculate relevance scores
+        scored_results = []
+        for product_data in products:
+            score = calculate_relevance_score(query_words, product_data['aciklama'])
+            if score > 0:  # Only include products with some relevance
+                product = Product(**product_data)
+                scored_results.append(SearchResult(
+                    product=product,
+                    relevance_score=score
+                ))
+        
+        # Sort by relevance score (highest first)
+        scored_results.sort(key=lambda x: x.relevance_score, reverse=True)
+        
+        return SearchResponse(
+            results=scored_results,
+            total_count=len(scored_results),
+            query=q
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Search error: {str(e)}")
+
+@app.get("/api/products/count")
+async def get_products_count():
+    """Get total number of products in database"""
+    try:
+        count = await db.products.count_documents({})
+        return {"count": count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error counting products: {str(e)}")
+
+@app.delete("/api/products")
+async def clear_products():
+    """Clear all products from database"""
+    try:
+        result = await db.products.delete_many({})
+        return {"message": f"Deleted {result.deleted_count} products"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error clearing products: {str(e)}")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8001)
