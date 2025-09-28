@@ -363,11 +363,14 @@ class ExcelSearchEngineTest:
         self.test_clear_products()  # Clear any existing data first
         self.test_excel_upload_valid()
         self.test_excel_upload_invalid_format()
-        self.test_excel_upload_missing_columns()
+        # Note: Skip missing columns test as it overwrites good data
+        # self.test_excel_upload_missing_columns()
         self.test_search_turkish_fuzzy()
         self.test_search_edge_cases()
         self.test_search_relevance_scoring()
         self.test_products_count()
+        # Test missing columns after search tests
+        self.test_excel_upload_missing_columns()
         
         # Summary
         print("\n" + "=" * 60)
