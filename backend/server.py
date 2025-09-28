@@ -171,12 +171,13 @@ async def upload_excel(file: UploadFile = File(...)):
         upload_date = datetime.now().isoformat()
         
         for index, row in df.iterrows():
-            if pd.isna(row['marka']) or pd.isna(row['aciklama']) or pd.isna(row['fiyat']):
+            if pd.isna(row['marka']) or pd.isna(row['kod']) or pd.isna(row['aciklama']) or pd.isna(row['fiyat']):
                 continue
                 
             product = {
                 "id": str(uuid.uuid4()),
                 "marka": str(row['marka']).strip(),
+                "kod": str(row['kod']).strip(), 
                 "aciklama": str(row['aciklama']).strip(),
                 "fiyat": str(row['fiyat']).strip(),
                 "normalized_aciklama": normalize_text(str(row['aciklama'])),
