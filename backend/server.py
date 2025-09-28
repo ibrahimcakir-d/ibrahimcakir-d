@@ -79,68 +79,112 @@ def normalize_text(text: str) -> str:
     return text.strip()
 
 def calculate_relevance_score(query_words: List[str], description: str, brand: str, code: str) -> float:
-    """Calculate relevance score with stricter matching for better precision"""
+    """Calculate relevance score with very strict matching - ALL query terms must be satisfied"""
     # Normalize all text fields
     normalized_desc = normalize_text(description)
     normalized_brand = normalize_text(brand) 
     normalized_code = normalize_text(code)
-    
-    # Split into words
-    desc_words = normalized_desc.split()
-    brand_words = normalized_brand.split()
-    code_words = normalized_code.split()
-    all_words = desc_words + brand_words + code_words
     all_text = f"{normalized_desc} {normalized_brand} {normalized_code}"
     
-    # Define critical keywords that need exact matches
+    # Define critical keywords categories
     color_keywords = ['sari', 'kirmizi', 'yesil', 'mavi', 'beyaz', 'siyah', 'turuncu', 'mor']
-    voltage_keywords = ['220v', '24v', '12v', '110v', '380v']
+    voltage_keywords = ['220v', '24v', '12v', '110v', '380v', '220', '24', '12', '110', '380']
+    product_type_keywords = ['led', 'ledi', 'ledli', 'kontaktor', 'role', 'sensor', 'sensor', 'buton', 'lamba', 'isik']
     
-    matches = 0.0
-    critical_mismatches = 0
-    total_query_words = len([w for w in query_words if len(w) > 1])
+    query_colors = [w for w in query_words if w in color_keywords]
+    query_voltages = [w for w in query_words if w in voltage_keywords] 
+    query_product_types = [w for w in query_words if w in product_type_keywords]
+    query_other = [w for w in query_words if w not in color_keywords + voltage_keywords + product_type_keywords and len(w) > 1]
     
-    if total_query_words == 0:
+    # Check if ALL categories present in query are also present in product
+    total_matches = 0.0
+    total_required = 0.0
+    
+    # Colors - if query has colors, product MUST have matching colors
+    if query_colors:
+        color_found = False
+        for color in query_colors:
+            if color in all_text:
+                color_found = True
+                total_matches += 1.0
+                break
+        
+        total_required += 1.0
+        if not color_found:
+            return 0.0  # Immediate fail if color doesn't match
+    
+    # Voltages - if query has voltages, product MUST have matching voltages
+    if query_voltages:
+        voltage_found = False
+        for voltage in query_voltages:
+            if voltage in all_text:
+                voltage_found = True
+                total_matches += 1.0
+                break
+        
+        total_required += 1.0
+        if not voltage_found:
+            return 0.0  # Immediate fail if voltage doesn't match
+    
+    # Product types - if query has product types, product MUST have them
+    if query_product_types:
+        product_type_score = 0.0
+        for ptype in query_product_types:
+            if ptype in all_text:
+                product_type_score += 1.0
+            else:
+                # Check for related terms
+                related_terms = {
+                    'led': ['led', 'ledi', 'ledli'],
+                    'kontaktor': ['kontaktor', 'contactor'],
+                    'role': ['role', 'rele', 'relay'],
+                    'sensor': ['sensor', 'sensor'],
+                    'lamba': ['lamba', 'isik', 'light']
+                }
+                found_related = False
+                for main_term, related_list in related_terms.items():
+                    if ptype == main_term:
+                        for related in related_list:
+                            if related in all_text:
+                                product_type_score += 0.8
+                                found_related = True
+                                break
+                        if found_related:
+                            break
+        
+        if len(query_product_types) > 0:
+            product_type_match_ratio = product_type_score / len(query_product_types)
+            if product_type_match_ratio < 0.7:  # At least 70% of product types must match
+                return 0.0
+            total_matches += product_type_match_ratio
+            total_required += 1.0
+    
+    # Other general terms - at least 50% should match
+    if query_other:
+        other_matches = 0.0
+        for term in query_other:
+            if term in all_text:
+                other_matches += 1.0
+            else:
+                # Partial matching for general terms
+                words = all_text.split()
+                for word in words:
+                    if len(word) > 3 and len(term) > 3 and (term in word or word in term):
+                        other_matches += 0.5
+                        break
+        
+        other_match_ratio = other_matches / len(query_other)
+        if other_match_ratio < 0.5:  # At least 50% of other terms must match
+            return 0.0
+        
+        total_matches += other_match_ratio
+        total_required += 1.0
+    
+    # Calculate final score
+    if total_required == 0:
         return 0.0
     
-    for query_word in query_words:
-        if len(query_word) <= 1:
-            continue
-            
-        # For critical keywords (colors, voltages), require exact or very close matches
-        if query_word in color_keywords or query_word in voltage_keywords:
-            if query_word in all_words:
-                matches += 1.0  # Exact match for critical keywords
-            elif query_word in all_text:
-                matches += 0.8  # Partial match for critical keywords
-            else:
-                critical_mismatches += 1  # Missing critical keyword
-            continue
-        
-        # For regular keywords
-        if query_word in all_words:
-            matches += 1.0  # Exact word match
-        elif query_word in all_text:
-            matches += 0.6  # Substring match
-        else:
-            # Check for partial matches with minimum length requirement
-            found_partial = False
-            for word in all_words:
-                if len(word) > 3 and len(query_word) > 3:
-                    if query_word in word or word in query_word:
-                        matches += 0.3  # Reduced score for partial matches
-                        found_partial = True
-                        break
-    
-    # Calculate base score
-    base_score = matches / total_query_words if total_query_words > 0 else 0.0
-    
-    # Apply penalties for critical mismatches
-    if critical_mismatches > 0:
-        penalty = critical_mismatches * 0.5
-        base_score = max(0, base_score - penalty)
-    
-    return min(base_score, 1.0)
+    return min(total_matches / total_required, 1.0)
 
 @app.get("/")
 async def root():
