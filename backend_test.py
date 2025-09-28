@@ -46,6 +46,16 @@ class ExcelSearchEngineTest:
                 'Pilz',
                 'Turck'
             ],
+            'Kod': [
+                'SIE-LED-24V-Y',
+                'SCH-REL-24V-SF',
+                'ABB-CNT-25A-3P',
+                'PHX-TRM-2.5-BL',
+                'WEI-IND-M18-8MM',
+                'OMR-PHT-100MM',
+                'PIL-EST-RED-MT',
+                'TUR-CAP-M30-15MM'
+            ],
             'Açıklama': [
                 'Sinyal lambası, plastik, sarı, LEDli, 24V DC',
                 'Güvenlik rölesi, 2NO+2NC, 24V AC/DC',
