@@ -340,6 +340,11 @@ body {
   background: #fed7d7 !important;
 }
 
+.code {
+  border-left-color: #805ad5 !important;
+  background: #e9d8fd !important;
+}
+
 .description {
   border-left-color: #4299e1 !important;
   background: #ebf8ff !important;
