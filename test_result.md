@@ -120,23 +120,24 @@ backend:
         agent: "testing"
         comment: "✅ WORKING! Excel upload correctly processes 4-column format (Marka, Kod, Açıklama, Fiyat). Successfully uploaded 8 Turkish products. Validation working: rejects non-Excel files, handles missing columns appropriately. Auto-mapping works when column names match. Turkish product data stored correctly with proper normalization."
 
-  - task: "Enhanced search with fuzzy matching"
+backend:
+  - task: "Enhanced search with stricter matching"
     implemented: true
-    working: true
+    working: "NA"
     file: "/app/backend/server.py"
     stuck_count: 1
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: false
         agent: "testing"
         comment: "Previous version had critical issue - search returned no results"
+      - working: false
+        agent: "user"
+        comment: "Search too loose - returns irrelevant results for 'sinyal lambası led kırmızı'"
       - working: "NA"
         agent: "main"
-        comment: "Fixed search algorithm: improved text normalization, added search across brand/code/description, adjusted word length threshold from >2 to >1, enhanced scoring with partial matches"
-      - working: true
-        agent: "testing"
-        comment: "✅ FIXED! Turkish fuzzy search now working perfectly. Tested all priority queries: 'sarı led' (1 result), 'güvenlik röle' (1 result), 'kontaktör 25A' (1 result), 'sensör endüktif' (3 results), 'acil stop' (1 result). Turkish character normalization working (ç→c, ğ→g, ı→i, ö→o, ş→s, ü→u). Multi-field search across brand, code, description functional. Relevance scoring properly ranks results. Search algorithm completely functional."
+        comment: "MAJOR ALGORITHM IMPROVEMENT: Added stricter matching with critical keyword detection (colors, voltages), increased minimum score threshold to 0.25, added penalties for missing critical terms, reduced partial match scores. Should now return only highly relevant results."
 
   - task: "Product count and management endpoints"
     implemented: true
