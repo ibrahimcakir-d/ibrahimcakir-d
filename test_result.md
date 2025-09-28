@@ -199,13 +199,16 @@ metadata:
 
 test_plan:
   current_focus:
-    - "All backend tasks completed successfully"
-  stuck_tasks: []
+    - "Enhanced search with stricter matching"
+  stuck_tasks:
+    - "Enhanced search with stricter matching"
   test_all: false
-  test_priority: "completed"
+  test_priority: "stuck_first"
 
 agent_communication:
   - agent: "main"
     message: "MAJOR FIXES APPLIED: Updated Excel parsing for 4 columns (Marka, Kod, Açıklama, Fiyat). Completely rewrote search algorithm to fix critical bug where no results were returned. Enhanced fuzzy matching with multi-field search (brand, code, description), improved Turkish text normalization, and better scoring algorithm. Frontend updated to display product codes. Critical search functionality should now work - ready for re-testing."
   - agent: "testing"
     message: "✅ BACKEND TESTING COMPLETE - ALL CRITICAL ISSUES FIXED! Excel upload working correctly with 4-column format. Turkish fuzzy search now returns accurate results with proper relevance scoring. Tested with comprehensive Turkish product data including: sarı led, güvenlik rölesi, kontaktör, sensör queries. All search algorithms working: exact matches, partial matches, Turkish character normalization (ç→c, ğ→g, etc.), multi-field search across brand/code/description. Search relevance scoring properly ranks results. All backend APIs functional. SUCCESS RATE: 100% (19/19 tests passed)."
+  - agent: "testing"
+    message: "🚨 CRITICAL SEARCH PRECISION FAILURE: Comprehensive testing reveals the improved algorithm still has major flaws. SPECIFIC ISSUES: 1) Query 'sarı led' returns 'Sarı lamba, akkor' (non-LED) with score 0.5 - algorithm only matches color, ignores missing 'led' 2) Query 'sinyal lambası led kırmızı' returns 'Kırmızı lamba, halojen' (non-LED) with score 0.325 3) Query '220v kontaktör' returns 'Kırmızı lamba' (non-contactor). ROOT CAUSE: Algorithm allows products to pass 0.25 threshold with partial matches even when critical product-type keywords (led, kontaktör, röle) are missing. SOLUTION NEEDED: Require ALL critical terms to be present, especially product type keywords, not just colors/voltages."
