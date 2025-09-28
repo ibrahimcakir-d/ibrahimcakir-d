@@ -92,8 +92,9 @@ class ExcelSearchEngineTest:
         """Create Excel with missing required columns"""
         data = {
             'Brand': ['Test Brand'],  # Wrong column name
+            'Code': ['TEST-001'],  # Wrong column name
             'Description': ['Test Description'],  # Wrong column name  
-            'Cost': ['100 TL']  # Wrong column name
+            'Cost': ['100 TL']  # Wrong column name - should be 4 columns but wrong names
         }
         
         df = pd.DataFrame(data)
