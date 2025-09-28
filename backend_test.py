@@ -261,7 +261,7 @@ class ExcelSearchEngineTest:
     def test_search_edge_cases(self):
         """Test search edge cases"""
         edge_cases = [
-            {"query": "", "description": "Empty query"},
+            {"query": "", "description": "Empty query", "expect_422": True},
             {"query": "   ", "description": "Whitespace only query"},
             {"query": "xyz123nonexistent", "description": "Non-existent term"},
             {"query": "çğıöşü", "description": "Turkish special characters only"},
