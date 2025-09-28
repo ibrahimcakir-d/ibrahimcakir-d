@@ -123,11 +123,11 @@ backend:
 backend:
   - task: "Enhanced search with stricter matching"
     implemented: true
-    working: "NA"
+    working: false
     file: "/app/backend/server.py"
-    stuck_count: 1
+    stuck_count: 2
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "testing"
@@ -138,6 +138,9 @@ backend:
       - working: "NA"
         agent: "main"
         comment: "MAJOR ALGORITHM IMPROVEMENT: Added stricter matching with critical keyword detection (colors, voltages), increased minimum score threshold to 0.25, added penalties for missing critical terms, reduced partial match scores. Should now return only highly relevant results."
+      - working: false
+        agent: "testing"
+        comment: "❌ CRITICAL SEARCH PRECISION ISSUES FOUND: 1) 'sarı led' returns non-LED products (score 0.5 for 'Sarı lamba, akkor') 2) 'sinyal lambası led kırmızı' returns non-LED products (score 0.325 for 'Kırmızı lamba, halojen') 3) '220v kontaktör' returns non-contactor products. Algorithm allows partial matches to pass 0.25 threshold. Need stricter enforcement: require ALL critical terms (led, kontaktör) to be present, not just color/voltage matches."
 
   - task: "Product count and management endpoints"
     implemented: true
