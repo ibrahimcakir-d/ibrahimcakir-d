@@ -139,9 +139,10 @@ async def upload_excel(file: UploadFile = File(...)):
         # Read Excel file
         contents = await file.read()
         
-        # Use pandas to read Excel
+        # Use pandas to read Excel with BytesIO to avoid deprecation warning
+        from io import BytesIO
         try:
-            df = pd.read_excel(contents)
+            df = pd.read_excel(BytesIO(contents))
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Error reading Excel file: {str(e)}")
         
