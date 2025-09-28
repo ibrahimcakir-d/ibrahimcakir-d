@@ -35,6 +35,7 @@ db = client[DATABASE_NAME]
 class Product(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     marka: str
+    kod: str
     aciklama: str
     fiyat: str
     normalized_aciklama: str
