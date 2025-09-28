@@ -79,7 +79,7 @@ def normalize_text(text: str) -> str:
     return text.strip()
 
 def calculate_relevance_score(query_words: List[str], description: str, brand: str, code: str) -> float:
-    """Calculate relevance score based on keyword matches in description, brand, and code"""
+    """Calculate relevance score with stricter matching for better precision"""
     # Normalize all text fields
     normalized_desc = normalize_text(description)
     normalized_brand = normalize_text(brand) 
@@ -90,40 +90,57 @@ def calculate_relevance_score(query_words: List[str], description: str, brand: s
     brand_words = normalized_brand.split()
     code_words = normalized_code.split()
     all_words = desc_words + brand_words + code_words
+    all_text = f"{normalized_desc} {normalized_brand} {normalized_code}"
+    
+    # Define critical keywords that need exact matches
+    color_keywords = ['sari', 'kirmizi', 'yesil', 'mavi', 'beyaz', 'siyah', 'turuncu', 'mor']
+    voltage_keywords = ['220v', '24v', '12v', '110v', '380v']
     
     matches = 0.0
-    total_query_words = len([w for w in query_words if len(w) > 1])  # Only count meaningful words
+    critical_mismatches = 0
+    total_query_words = len([w for w in query_words if len(w) > 1])
     
     if total_query_words == 0:
         return 0.0
     
     for query_word in query_words:
-        if len(query_word) <= 1:  # Skip very short words
+        if len(query_word) <= 1:
             continue
             
-        # Check for exact matches (highest score)
-        if query_word in all_words:
-            matches += 1.0
+        # For critical keywords (colors, voltages), require exact or very close matches
+        if query_word in color_keywords or query_word in voltage_keywords:
+            if query_word in all_words:
+                matches += 1.0  # Exact match for critical keywords
+            elif query_word in all_text:
+                matches += 0.8  # Partial match for critical keywords
+            else:
+                critical_mismatches += 1  # Missing critical keyword
             continue
-            
-        # Check for partial matches in description (medium score)
-        found_partial = False
-        for desc_word in desc_words:
-            if len(desc_word) > 2 and (query_word in desc_word or desc_word in query_word):
-                matches += 0.7
-                found_partial = True
-                break
         
-        if found_partial:
-            continue
-            
-        # Check for partial matches in brand/code (lower score)  
-        for word in brand_words + code_words:
-            if len(word) > 2 and (query_word in word or word in query_word):
-                matches += 0.5
-                break
+        # For regular keywords
+        if query_word in all_words:
+            matches += 1.0  # Exact word match
+        elif query_word in all_text:
+            matches += 0.6  # Substring match
+        else:
+            # Check for partial matches with minimum length requirement
+            found_partial = False
+            for word in all_words:
+                if len(word) > 3 and len(query_word) > 3:
+                    if query_word in word or word in query_word:
+                        matches += 0.3  # Reduced score for partial matches
+                        found_partial = True
+                        break
     
-    return min(matches / total_query_words, 1.0)  # Cap at 1.0
+    # Calculate base score
+    base_score = matches / total_query_words if total_query_words > 0 else 0.0
+    
+    # Apply penalties for critical mismatches
+    if critical_mismatches > 0:
+        penalty = critical_mismatches * 0.5
+        base_score = max(0, base_score - penalty)
+    
+    return min(base_score, 1.0)
 
 @app.get("/")
 async def root():
