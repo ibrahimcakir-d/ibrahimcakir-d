@@ -129,7 +129,7 @@ function App() {
         <div className="upload-section">
           <div className="upload-card">
             <h2>📊 Excel Dosyası Yükle</h2>
-            <p>Sütun sırası: A=Marka, B=Açıklama, C=Fiyat</p>
+            <p>Sütun sırası: A=Marka, B=Kod, C=Açıklama, D=Fiyat</p>
             
             <div className="file-upload-area">
               <input
