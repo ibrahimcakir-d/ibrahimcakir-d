@@ -273,7 +273,15 @@ class ExcelSearchEngineTest:
             try:
                 response = requests.get(f"{self.base_url}/search", params={"q": case["query"]})
                 
-                if response.status_code == 200:
+                # Check if we expect a 422 status for this case
+                if case.get("expect_422", False):
+                    if response.status_code == 422:
+                        self.log_test(f"Search Edge Case: {case['description']}", True, 
+                                    f"Query '{case['query']}' correctly rejected with 422 status")
+                    else:
+                        self.log_test(f"Search Edge Case: {case['description']}", False, 
+                                    f"Expected 422 status, got {response.status_code}")
+                elif response.status_code == 200:
                     data = response.json()
                     results_count = data.get('total_count', 0)
                     self.log_test(f"Search Edge Case: {case['description']}", True, 
